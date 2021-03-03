@@ -3,16 +3,22 @@ weapon_usage = {}
 do
     local configDefaults = {
         ["REPORT_FILENAME"] = "weapon_usage.csv",
+        ["TRACK_BY_AIRFIELD"] = false,
+        ["ONLY_TRACK_HUMANS"] = true,
     }
 
     local internalConfig = {}
 
     local ordinanceDiff = {}
 
+    local airfieldOrdinanceDiff = {}
+
     local columns = {
         "displayName",
         "delta",
     }
+
+    local menu = nil
 
     local function log(tmpl, ...)
         local txt = string.format("[WU] " .. tmpl, ...)
@@ -44,8 +50,37 @@ do
     
         trigger.action.outText(str, 30)
     end
+
+    local function printAirfieldStatus(params)
+        local str = string.format("%s munition usage:\n--------------------------\n", params.airfieldName)
+        for typeName,v in pairs(airfieldOrdinanceDiff[params.airfieldName]) do
+            str = str .. string.format("%s: %s\n", v.displayName, v.delta)
+        end
     
-    local function adjustDiff(weaponTypeName, displayName, delta)
+        trigger.action.outText(str, 30)
+    end
+    
+    local function adjustDiff(weaponTypeName, displayName, delta, airfieldName)
+        if internalConfig.TRACK_BY_AIRFIELD then
+            if not airfieldOrdinanceDiff[airfieldName] then
+                airfieldOrdinanceDiff[airfieldName] = {}
+
+                airfieldOrdinanceDiff[airfieldName][weaponTypeName] = {
+                    displayName = displayName,
+                    delta = 0,
+                }
+            end
+
+            if airfieldOrdinanceDiff[airfieldName] and not airfieldOrdinanceDiff[airfieldName][weaponTypeName] then
+                airfieldOrdinanceDiff[airfieldName][weaponTypeName] = {
+                    displayName = displayName,
+                    delta = 0,
+                }
+            end
+            
+            airfieldOrdinanceDiff[airfieldName][weaponTypeName].delta = airfieldOrdinanceDiff[airfieldName][weaponTypeName].delta + delta
+        end
+        
         if not ordinanceDiff[weaponTypeName] then
             ordinanceDiff[weaponTypeName] = { 
                 displayName = displayName, 
@@ -54,20 +89,17 @@ do
         end
     
         ordinanceDiff[weaponTypeName].delta = ordinanceDiff[weaponTypeName].delta + delta
-    
-        -- Log the diff so someone can see how to adjust stores in the next mission
-        -- log(mist.utils.tableShow(ordinanceDiff))
     end
 
-    local function getReportFile(writeAccess)
-        local fileName = string.format("%s\\%s", lfs.writedir(), internalConfig.REPORT_FILENAME)
+    local function getReportFile(name, writeAccess)
+        local fileName = string.format("%s\\%s", lfs.writedir(), name)
         local file = io.open(fileName, writeAccess and 'w' or 'r')
 
         return file
     end
 
     local function writeReport()
-        local fp = getReportFile(true)
+        local fp = getReportFile(internalConfig.REPORT_FILENAME, true)
 
         if not fp then
             log("Could not get file handle")
@@ -91,6 +123,33 @@ do
         fp:write(csv)
         fp:close()
     end
+
+    local function writeAirbaseReport()
+        local fp = getReportFile(internalConfig.AIRBASE_REPORT_FILENAME, true)
+
+        if not fp then
+            log("Could not get file handle")
+            return
+        end
+
+        local csv = ""
+        for airbaseName,record in pairs(airfieldOrdinanceDiff) do
+            for typeName,usageRecord in pairs(record) do
+                local row = string.format("%s,", airbaseName)
+                for i,col in ipairs(columns) do
+                    -- Ensure the last column does not get a comma
+                    local fmt = i == #columns and "%s" or "%s,"
+                    row = row .. string.format(fmt, usageRecord[col])
+                end
+                row = row .. "\n"
+                csv = csv .. row
+            end
+        end
+
+        log("Writing airbase report file...")
+        fp:write(csv)
+        fp:close()
+    end
     
     local function eventHandler (event)
         local object = event.initiator
@@ -98,34 +157,51 @@ do
             return
         end
     
-        -- if object.getPlayerName and object:getPlayerName() == nil then
-        --     -- Only track humans
-        --     return
-        -- end
-    
+        if internalConfig.ONLY_TRACK_HUMANS then
+            if object.getPlayerName and object:getPlayerName() == nil then
+                -- Only track humans
+                return
+            end
+        end
     
         if event.id == world.event.S_EVENT_TAKEOFF or event.id == world.event.S_EVENT_LAND then
-            log(event.place:getName())
             local ordinance = object:getAmmo()
     
             -- Subtract on takeoff, add on land
             local sign = event.id == world.event.S_EVENT_TAKEOFF and -1 or 1
 
-            log("Unit %s has taken off", object:getName())
-    
-            for i,weapon in ipairs(ordinance) do
-                adjustDiff(weapon.desc.typeName, weapon.desc.displayName, (weapon.count * sign))
+            local airfieldName = event.place:getName()
+            local eventText = event.id == world.event.S_EVENT_TAKEOFF and "taken off" or "landed"
+
+            log("Unit %s has %s at %s", object:getName(), eventText, airfieldName)
+
+            if internalConfig.TRACK_BY_AIRFIELD then
+                if not airfieldOrdinanceDiff[airfieldName] then
+                    missionCommands.addCommand(airfieldName, menu, printAirfieldStatus, { airfieldName=airfieldName })
+                end
             end
-            writeReport(true)
+
+            for i,weapon in ipairs(ordinance) do
+                adjustDiff(weapon.desc.typeName, weapon.desc.displayName, (weapon.count * sign), airfieldName)
+            end
+
+            writeReport()
+
+            if internalConfig.TRACK_BY_AIRFIELD then
+                writeAirbaseReport()
+            end
         end
     end
 
 
-    internalConfig = buildConfig()
+    function weapon_usage.init()
+        internalConfig = buildConfig()
 
-    missionCommands.addCommand("Show munitions status", nil, printMunitionStatus)
+        menu = missionCommands.addSubMenu("Show munitions status")
+        missionCommands.addCommand("Total", menu, printMunitionStatus)
 
-    mist.addEventHandler(eventHandler)
+        mist.addEventHandler(eventHandler)
 
-    trigger.action.outText("Weapon usage tracking enabled", 30)
+        trigger.action.outText("Weapon usage tracking enabled", 30)
+    end
 end
