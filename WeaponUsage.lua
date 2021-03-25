@@ -167,11 +167,14 @@ do
     
         if event.id == world.event.S_EVENT_TAKEOFF or event.id == world.event.S_EVENT_LAND then
             local ordinance = object:getAmmo()
+
+            if not ordinance then
+                -- Unit does not have weapons/ammo
+                return
+            end
     
             -- Subtract on takeoff, add on land
             local sign = event.id == world.event.S_EVENT_TAKEOFF and -1 or 1
-
-
 
             local airfieldName = "Ground"
             if event.place then
@@ -186,11 +189,6 @@ do
                 if not airfieldOrdinanceDiff[airfieldName] then
                     missionCommands.addCommand(airfieldName, menu, printAirfieldStatus, { airfieldName=airfieldName })
                 end
-            end
-
-            if not ordinance then
-                -- Unit does not have weapons/ammo
-                return
             end
 
             for i,weapon in ipairs(ordinance) do
