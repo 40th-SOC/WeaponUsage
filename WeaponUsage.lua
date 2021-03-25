@@ -171,7 +171,13 @@ do
             -- Subtract on takeoff, add on land
             local sign = event.id == world.event.S_EVENT_TAKEOFF and -1 or 1
 
-            local airfieldName = event.place:getName()
+
+
+            local airfieldName = "Ground"
+            if event.place then
+                airfieldName = event.place:getName()
+            end
+
             local eventText = event.id == world.event.S_EVENT_TAKEOFF and "taken off" or "landed"
 
             log("Unit %s has %s at %s", object:getName(), eventText, airfieldName)
@@ -180,6 +186,11 @@ do
                 if not airfieldOrdinanceDiff[airfieldName] then
                     missionCommands.addCommand(airfieldName, menu, printAirfieldStatus, { airfieldName=airfieldName })
                 end
+            end
+
+            if not ordinance then
+                -- Unit does not have weapons/ammo
+                return
             end
 
             for i,weapon in ipairs(ordinance) do
