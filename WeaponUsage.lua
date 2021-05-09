@@ -21,6 +21,11 @@ do
 
     local menu = nil
 
+    -- Create a uniq string each time the script is loaded.
+    -- This prevents the next mission from loading after an "End Mission" action
+    -- and over-writing the file.
+    local fileUniqId = string.format("%s", math.random(0, 10000))
+
     local function log(tmpl, ...)
         local txt = string.format("[WU] " .. tmpl, ...)
 
@@ -93,7 +98,7 @@ do
     end
 
     local function getReportFile(name, writeAccess)
-        local fileName = string.format("%s\\%s", lfs.writedir(), name)
+        local fileName = string.format("%s\\%s_%s", lfs.writedir(), fileUniqId, name)
         local file = io.open(fileName, writeAccess and 'w' or 'r')
 
         return file
@@ -212,6 +217,6 @@ do
 
         mist.addEventHandler(eventHandler)
 
-        trigger.action.outText("Weapon usage tracking enabled", 30)
+        trigger.action.outText(string.format("Weapon usage tracking enabled. Unique file ID: %s", fileUniqId), 30)
     end
 end
