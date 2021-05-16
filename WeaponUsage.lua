@@ -162,11 +162,16 @@ do
         if object == nil then
             return
         end
+        
     
         if internalConfig.ONLY_TRACK_HUMANS then
-            if object.getPlayerName and object:getPlayerName() == nil then
-                -- Only track humans
-                return
+            local unit = Unit.getByName(object:getName())
+
+            if unit then
+                if unit:getPlayerName() == nil then
+                    -- Only track humans
+                    return
+                end
             end
         end
     
@@ -210,6 +215,12 @@ do
 
 
     function weapon_usage.init()
+        -- This will ensure the server does not pause on errors.
+        -- Warning: you need to check your DCS logs if you do not have this variable set.
+        if not __DEV_ENV == true then
+            env.setErrorMessageBoxEnabled(false)
+        end
+
         internalConfig = buildConfig()
 
         menu = missionCommands.addSubMenu("Show munitions status")
@@ -217,6 +228,8 @@ do
 
         mist.addEventHandler(eventHandler)
 
-        trigger.action.outText(string.format("Weapon usage tracking enabled. Unique file ID: %s", fileUniqId), 30)
+        local msg = string.format("Weapon usage tracking enabled. Unique file ID: %s", fileUniqId)
+        log(msg)
+        trigger.action.outText(msg, 30)
     end
 end
