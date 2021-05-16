@@ -8,6 +8,7 @@ To enable mission scripts to write to disk, you must first comment out these lin
 
 ```lua
 do
+    __DEV_ENV = true -- set this to enable extra logging and to pause the simulation on lua errors
     -- sanitizeModule('os')
     -- sanitizeModule('io')
     -- sanitizeModule('lfs')
