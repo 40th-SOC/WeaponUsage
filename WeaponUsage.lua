@@ -163,18 +163,6 @@ do
             return
         end
         
-    
-        if internalConfig.ONLY_TRACK_HUMANS then
-            local unit = Unit.getByName(object:getName())
-
-            if unit then
-                if unit:getPlayerName() == nil then
-                    -- Only track humans
-                    return
-                end
-            end
-        end
-    
         if event.id == world.event.S_EVENT_TAKEOFF or event.id == world.event.S_EVENT_LAND then
             local ordinance = object:getAmmo()
 
@@ -182,7 +170,18 @@ do
                 -- Unit does not have weapons/ammo
                 return
             end
+
+            if internalConfig.ONLY_TRACK_HUMANS then
+                local unit = Unit.getByName(object:getName())
     
+                if unit then
+                    if unit:getPlayerName() == nil then
+                        -- Only track humans
+                        return
+                    end
+                end
+            end    
+
             -- Subtract on takeoff, add on land
             local sign = event.id == world.event.S_EVENT_TAKEOFF and -1 or 1
 
